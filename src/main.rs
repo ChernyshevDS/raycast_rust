@@ -6,6 +6,7 @@ use cgmath::prelude::*;
 use cgmath::Vector3;
 
 type Vec3f = Vector3<f32>;
+type ColorF = frame::ColorF;
 
 mod frame;
 
@@ -13,33 +14,29 @@ const FOV: f32 = std::f32::consts::FRAC_PI_2;
 
 fn main() {
     let mut framebuffer = frame::Frame::new(1024, 768);
-    let sphere = Sphere { center: Vector3::new(-3.0, 0.0, -16.0), radius: 2.0 };
 
-    render(&mut framebuffer, &sphere);
+    let ivory = Material { diffuse_color: ColorF::rgb(0.4, 0.4, 0.3) };
+    let red_rubber = Material { diffuse_color: ColorF::rgb(0.3, 0.1, 0.1) };
+
+    let mut spheres = Vec::new();
+    spheres.push(Sphere { center: Vector3::new(-3.0,  0.0, -16.0), radius: 2.0, material:      &ivory });
+    spheres.push(Sphere { center: Vector3::new(-1.0, -1.5, -12.0), radius: 2.0, material: &red_rubber });
+    spheres.push(Sphere { center: Vector3::new( 1.5, -0.5, -18.0), radius: 3.0, material: &red_rubber });
+    spheres.push(Sphere { center: Vector3::new( 7.0,  5.0, -18.0), radius: 4.0, material:      &ivory });
+
+    render_scene(&mut framebuffer, &spheres);
 
     save_as_ppm(&framebuffer).unwrap();
 }
 
-fn render_gradient(framebuffer: &mut frame::Frame){
-    for y in 0..framebuffer.height() {
-        for x in 0..framebuffer.width() {
-            let color = frame::ColorF::rgb(y as f32 / framebuffer.height() as f32,
-                                           x as f32 / framebuffer.width() as f32, 
-                                           0.0);
-            framebuffer.set_pixel(x, y, &color);
-        }
+fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>) -> frame::ColorF {
+    match scene_intersect(orig, dir, objects) {
+        Some(hit) => hit.material.diffuse_color,
+        None => frame::ColorF::rgb(0.2, 0.7, 0.8) 
     }
 }
 
-fn cast_ray(orig: &Vec3f, dir: &Vec3f, sphere: &Sphere) -> frame::ColorF {
-    let mut sphere_dist = std::f32::MAX;
-    if !sphere.ray_intersect(orig, dir, &mut sphere_dist) {
-        return frame::ColorF::rgb(0.2, 0.7, 0.8);
-    }
-    return frame::ColorF::rgb(0.4, 0.4, 0.3);
-}
-
-fn render(framebuffer: &mut frame::Frame, sphere: &Sphere) {
+fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<Sphere>) {
     let height = framebuffer.height(); 
     let width = framebuffer.width();
     let fovtan = (FOV / 2.0).tan();
@@ -48,7 +45,7 @@ fn render(framebuffer: &mut frame::Frame, sphere: &Sphere) {
             let x =  (2.0 * (i as f32 + 0.5) / (width as f32)  - 1.0) * fovtan * (width as f32) / (height as f32);
             let y = -(2.0 * (j as f32 + 0.5) / (height as f32) - 1.0) * fovtan;
             let dir: Vec3f = Vector3::new(x, y, -1.0).normalize();
-            let color = cast_ray(&Vector3::zero(), &dir, sphere);
+            let color = cast_ray(&Vector3::zero(), &dir, objects);
             framebuffer.set_pixel(i, j, &color);
         }
     }
@@ -96,29 +93,63 @@ fn save_as_ppm(frame: &frame::Frame) -> std::io::Result<()>{
     Ok(())
 }
 
-pub struct Sphere {
-    pub center: Vec3f,
-    pub radius: f32
+pub trait RayTraceable {
+    fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<f32>;
 }
 
-impl Sphere {
-    pub fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f, step: &mut f32) -> bool {
-        let L: Vec3f = self.center - origin;
-        let tca: f32 = L.dot(*dir);
-        let d2: f32 = L.dot(L) - tca*tca;
+pub struct Sphere<'a> {
+    pub center: Vec3f,
+    pub radius: f32,
+    pub material: &'a Material
+}
+
+impl RayTraceable for Sphere<'_> {
+    fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<f32> {
+        let fwd: Vec3f = self.center - origin;
+        let tca: f32 = fwd.dot(*dir);
+        let d2: f32 = fwd.dot(fwd) - tca*tca;
         if d2 > self.radius * self.radius 
         {
-            return false;
+            return None;
         }
         let thc: f32 = (self.radius*self.radius - d2).sqrt();
-        *step = tca - thc;
+        let mut intersection = tca - thc;
         let t1 = tca + thc;
-        if *step < 0.0 {
-            *step = t1;
+        if intersection < 0.0 {
+            intersection = t1;
         } 
-        if *step < 0.0 {
-            return false;
+        if intersection < 0.0 {
+            return None;
         }
-        return true;
+        return Some(intersection);
     }
+}
+
+pub struct Material {
+    pub diffuse_color: ColorF
+}
+
+pub struct HitInfo<'a> {
+    pub hitpoint: Vec3f,
+    pub normal: Vec3f,
+    pub material: &'a Material
+}
+
+fn scene_intersect<'a>(orig: &Vec3f, dir: &Vec3f, spheres: &'a Vec<Sphere>) -> Option<HitInfo<'a>> {
+    let mut spheres_dist = std::f32::MAX;
+    let mut info: Option<HitInfo<'_>> = None;
+
+    for sphere in spheres {
+        let mut dist_i: f32 = 0.0;
+        
+        if let Some(inter) = sphere.ray_intersect(orig, dir) {
+            if dist_i < spheres_dist {
+                spheres_dist = inter;
+                let hitpoint = orig + dir * dist_i;
+                let normal = (hitpoint - sphere.center).normalize();
+                info = Some(HitInfo { hitpoint, normal, material: sphere.material });
+            }
+        }
+    }
+    info
 }
