@@ -1,12 +1,20 @@
-use std::io;
+#![allow(dead_code)]
+
 use std::fs::File;
 use std::io::prelude::*;
+use cgmath::prelude::*;
 
 mod frame;
 
 fn main() {
     let mut framebuffer = frame::Frame::new(640, 480);
 
+    render(&mut framebuffer);
+
+    save_as_ppm(&framebuffer).unwrap();
+}
+
+fn render(framebuffer: &mut frame::Frame){
     for y in 0..framebuffer.height() {
         for x in 0..framebuffer.width() {
             let color = frame::ColorF::rgb(y as f32 / framebuffer.height() as f32,
@@ -15,8 +23,6 @@ fn main() {
             framebuffer.set_pixel(x, y, &color);
         }
     }
-
-    save_as_ppm(&framebuffer).unwrap();
 }
 
 fn clamp_to_byte(v: f32) -> u8 {
