@@ -45,11 +45,16 @@ fn main() {
         specularity: 1425.0
     };
 
-    let mut spheres = Vec::new();
-    spheres.push(Sphere { center: Vector3::new(-3.0,  0.0, -16.0), radius: 2.0, material:      &ivory });
-    spheres.push(Sphere { center: Vector3::new(-1.0, -1.5, -12.0), radius: 2.0, material:      &glass });
-    spheres.push(Sphere { center: Vector3::new( 1.5, -0.5, -18.0), radius: 3.0, material: &red_rubber });
-    spheres.push(Sphere { center: Vector3::new( 7.0,  5.0, -18.0), radius: 4.0, material:     &mirror });
+    let s1 = Sphere { center: Vector3::new(-3.0,  0.0, -16.0), radius: 2.0, material:      &ivory };
+    let s2 = Sphere { center: Vector3::new(-1.0, -1.5, -12.0), radius: 2.0, material:      &glass };
+    let s3 = Sphere { center: Vector3::new( 1.5, -0.5, -18.0), radius: 3.0, material: &red_rubber };
+    let s4 = Sphere { center: Vector3::new( 7.0,  5.0, -18.0), radius: 4.0, material:     &mirror };
+
+    let mut spheres = Vec::<&dyn RayTraceable>::new();
+    spheres.push(&s1);
+    spheres.push(&s2);
+    spheres.push(&s3);
+    spheres.push(&s4);
 
     let mut lights = Vec::new();
     lights.push(Light { position: Vector3::new(-20.0, 20.0,  20.0), intensity: 1.5 });
@@ -61,7 +66,7 @@ fn main() {
     save_as_ppm(&framebuffer).unwrap();
 }
 
-fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>, lights: &Vec<Light>, depth: i32) -> frame::ColorF {
+fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<&dyn RayTraceable>, lights: &Vec<Light>, depth: i32) -> frame::ColorF {
     let maybe_hit = scene_intersect(orig, dir, objects);
     
     if maybe_hit.is_none() || depth > MAX_REFLECTION {
@@ -126,7 +131,7 @@ fn reflect(vec: Vec3f, relative_to: Vec3f) -> Vec3f {
     return vec - relative_to * 2.0 * (vec.dot(relative_to));
 }
 
-fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<Sphere>, lights: &Vec<Light>) {
+fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<&dyn RayTraceable>, lights: &Vec<Light>) {
     let height = framebuffer.height(); 
     let width = framebuffer.width();
     let fovtan = (FOV / 2.0).tan();
@@ -184,7 +189,7 @@ fn save_as_ppm(frame: &frame::Frame) -> std::io::Result<()>{
 }
 
 pub trait RayTraceable {
-    fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<f32>;
+    fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<HitInfo>;
 }
 
 pub struct Sphere<'a> {
@@ -194,7 +199,7 @@ pub struct Sphere<'a> {
 }
 
 impl RayTraceable for Sphere<'_> {
-    fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<f32> {
+    fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<HitInfo> {
         let fwd: Vec3f = self.center - origin;
         let tca: f32 = fwd.dot(*dir);
         let d2: f32 = fwd.dot(fwd) - tca*tca;
@@ -211,7 +216,10 @@ impl RayTraceable for Sphere<'_> {
         if intersection < 0.0 {
             return None;
         }
-        return Some(intersection);
+
+        let hitpoint = origin + dir * intersection;
+        let normal = (hitpoint - self.center).normalize();
+        Some(HitInfo { distance: intersection, hitpoint, normal, material: self.material })
     }
 }
 
@@ -223,22 +231,21 @@ pub struct Material {
 }
 
 pub struct HitInfo<'a> {
+    pub distance: f32,
     pub hitpoint: Vec3f,
     pub normal: Vec3f,
     pub material: &'a Material
 }
 
-fn scene_intersect<'a>(orig: &Vec3f, dir: &Vec3f, spheres: &'a Vec<Sphere>) -> Option<HitInfo<'a>> {
+fn scene_intersect<'a>(orig: &Vec3f, dir: &Vec3f, spheres: &'a Vec<&dyn RayTraceable>) -> Option<HitInfo<'a>> {
     let mut spheres_dist = std::f32::MAX;
     let mut info: Option<HitInfo<'_>> = None;
 
     for sphere in spheres {
-        if let Some(inter) = sphere.ray_intersect(orig, dir) {
-            if inter < spheres_dist {
-                spheres_dist = inter;
-                let hitpoint = orig + dir * inter;
-                let normal = (hitpoint - sphere.center).normalize();
-                info = Some(HitInfo { hitpoint, normal, material: sphere.material });
+        if let Some(hit) = sphere.ray_intersect(orig, dir) {
+            if hit.distance < spheres_dist {
+                spheres_dist = hit.distance;
+                info = Some(hit);
             }
         }
     }
