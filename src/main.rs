@@ -13,26 +13,32 @@ type ColorF = frame::ColorF;
 mod frame;
 
 const FOV: f32 = std::f32::consts::FRAC_PI_4;
+const MAX_REFLECTION: i32 = 4;
 
 fn main() {
     let mut framebuffer = frame::Frame::new(1024, 768);
 
     let ivory = Material { 
-        albedo: Vec2f{ x:0.6, y: 0.3 }, 
+        albedo: Vec3f{ x:0.6, y: 0.3, z: 0.1 }, 
         diffuse_color: ColorF::rgb(0.4, 0.4, 0.3),
         specularity: 50.0
     };
     let red_rubber = Material {
-        albedo: Vec2f{ x:0.9, y: 0.1 }, 
+        albedo: Vec3f{ x:0.9, y: 0.1, z:0.0 }, 
         diffuse_color: ColorF::rgb(0.3, 0.1, 0.1),
         specularity: 10.0
+    };
+    let mirror = Material {
+        albedo: Vec3f{ x:0.0, y: 10.0, z:0.8 }, 
+        diffuse_color: ColorF::WHITE,
+        specularity: 1425.0
     };
 
     let mut spheres = Vec::new();
     spheres.push(Sphere { center: Vector3::new(-3.0,  0.0, -16.0), radius: 2.0, material:      &ivory });
-    spheres.push(Sphere { center: Vector3::new(-1.0, -1.5, -12.0), radius: 2.0, material: &red_rubber });
+    spheres.push(Sphere { center: Vector3::new(-1.0, -1.5, -12.0), radius: 2.0, material:     &mirror });
     spheres.push(Sphere { center: Vector3::new( 1.5, -0.5, -18.0), radius: 3.0, material: &red_rubber });
-    spheres.push(Sphere { center: Vector3::new( 7.0,  5.0, -18.0), radius: 4.0, material:      &ivory });
+    spheres.push(Sphere { center: Vector3::new( 7.0,  5.0, -18.0), radius: 4.0, material:     &mirror });
 
     let mut lights = Vec::new();
     lights.push(Light { position: Vector3::new(-20.0, 20.0,  20.0), intensity: 1.5 });
@@ -51,35 +57,41 @@ Material tmpmaterial;
 if (scene_intersect(shadow_orig, light_dir, spheres, shadow_pt, shadow_N, tmpmaterial) && (shadow_pt-shadow_orig).norm() < light_distance)
     continue;*/
 
-fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>, lights: &Vec<Light>) -> frame::ColorF {
-    match scene_intersect(orig, dir, objects) {
-        Some(hit) => {
-            let mut diffuse_intensity = 0.0;
-            let mut specular_intensity = 0.0;
-            for light in lights {
-                let light_dir = (light.position - hit.hitpoint).normalize();
-                let light_distance = (light.position - hit.hitpoint).magnitude();
-                let shadow_orig = if light_dir.dot(hit.normal) < 0.0 
-                         { hit.hitpoint - hit.normal * 1e-3 } 
-                    else { hit.hitpoint + hit.normal * 1e-3 };
+fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>, lights: &Vec<Light>, depth: i32) -> frame::ColorF {
+    let maybe_hit = scene_intersect(orig, dir, objects);
+    
+    if maybe_hit.is_none() || depth > MAX_REFLECTION {
+        ColorF::rgb(0.2, 0.7, 0.8)  //background
+    } else {
+        let hit = maybe_hit.unwrap();
+        let reflect_dir = reflect(*dir, hit.normal).normalize();
+        let reflect_orig = if reflect_dir.dot(hit.normal) < 0.0 
+            { hit.hitpoint - hit.normal * 1e-3 } 
+            else { hit.hitpoint + hit.normal * 1e-3 } ; // offset the original point to avoid occlusion by the object itself
+        let reflect_color = cast_ray(&reflect_orig, &reflect_dir, objects, lights, depth + 1);
 
-                match scene_intersect(&shadow_orig, &light_dir, objects) {
-                    Some(shadow_hit) => {
-                        if (shadow_hit.hitpoint - shadow_orig).magnitude() < light_distance {
-                            continue;
-                        }
-                    },
-                    None => {}
+        let mut diffuse_intensity = 0.0;
+        let mut specular_intensity = 0.0;
+        for light in lights {
+            let light_dir = (light.position - hit.hitpoint).normalize();
+            let light_distance = (light.position - hit.hitpoint).magnitude();
+            let shadow_orig = if light_dir.dot(hit.normal) < 0.0 
+                        { hit.hitpoint - hit.normal * 1e-3 } 
+                else { hit.hitpoint + hit.normal * 1e-3 };
+
+            if let Some(shadow_hit) = scene_intersect(&shadow_orig, &light_dir, objects) {
+                if (shadow_hit.hitpoint - shadow_orig).magnitude() < light_distance {
+                    continue;
                 }
-
-                diffuse_intensity += light.intensity * light_dir.dot(hit.normal).max(0.0);
-                specular_intensity += reflect(light_dir, hit.normal).dot(*dir).max(0.0).powf(hit.material.specularity) * light.intensity;
             }
-            let diffuse = hit.material.diffuse_color * diffuse_intensity * hit.material.albedo.x;
-            let specular = ColorF::WHITE * specular_intensity * hit.material.albedo.y;
-            diffuse + specular
-        },
-        None => frame::ColorF::rgb(0.2, 0.7, 0.8) 
+
+            diffuse_intensity += light.intensity * light_dir.dot(hit.normal).max(0.0);
+            specular_intensity += reflect(light_dir, hit.normal).dot(*dir).max(0.0).powf(hit.material.specularity) * light.intensity;
+        }
+        let diffuse = hit.material.diffuse_color * diffuse_intensity * hit.material.albedo.x;
+        let specular = ColorF::WHITE * specular_intensity * hit.material.albedo.y;
+        let mirror = reflect_color * hit.material.albedo.z;
+        diffuse + specular + mirror
     }
 }
 
@@ -96,7 +108,7 @@ fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<Sphere>, lights: &
             let x =  (2.0 * (i as f32 + 0.5) / (width as f32)  - 1.0) * fovtan * (width as f32) / (height as f32);
             let y = -(2.0 * (j as f32 + 0.5) / (height as f32) - 1.0) * fovtan;
             let dir: Vec3f = Vector3::new(x, y, -1.0).normalize();
-            let color = cast_ray(&Vector3::zero(), &dir, objects, lights);
+            let color = cast_ray(&Vector3::zero(), &dir, objects, lights, 0);
             framebuffer.set_pixel(i, j, &color);
         }
     }
@@ -177,7 +189,7 @@ impl RayTraceable for Sphere<'_> {
 }
 
 pub struct Material {
-    pub albedo: Vec2f,
+    pub albedo: Vec3f,
     pub diffuse_color: ColorF,
     pub specularity: f32
 }
