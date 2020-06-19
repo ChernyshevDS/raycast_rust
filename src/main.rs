@@ -49,12 +49,28 @@ fn main() {
     let s2 = Sphere { center: Vector3::new(-1.0, -1.5, -12.0), radius: 2.0, material:      &glass };
     let s3 = Sphere { center: Vector3::new( 1.5, -0.5, -18.0), radius: 3.0, material: &red_rubber };
     let s4 = Sphere { center: Vector3::new( 7.0,  5.0, -18.0), radius: 4.0, material:     &mirror };
+    
+    //Vec3f(.3,.3,.3) : Vec3f(.3, .2, .1);
+    let even_chess = Material {
+        refract: 1.0,
+        albedo: Vec4f{ x:0.9, y: 0.1, z:0.0, w: 0.0 }, 
+        diffuse_color: ColorF::rgb(0.3, 0.3, 0.3),
+        specularity: 10.0
+    };
+    let odd_chess = Material {
+        refract: 1.0,
+        albedo: Vec4f{ x:0.9, y: 0.1, z:0.0, w: 0.0 }, 
+        diffuse_color: ColorF::rgb(0.3, 0.2, 0.1),
+        specularity: 10.0
+    };
+    let brd = Chessboard { even_material: &even_chess, odd_material: &odd_chess };
 
     let mut spheres = Vec::<&dyn RayTraceable>::new();
     spheres.push(&s1);
     spheres.push(&s2);
     spheres.push(&s3);
     spheres.push(&s4);
+    spheres.push(&brd);
 
     let mut lights = Vec::new();
     lights.push(Light { position: Vector3::new(-20.0, 20.0,  20.0), intensity: 1.5 });
@@ -255,4 +271,26 @@ fn scene_intersect<'a>(orig: &Vec3f, dir: &Vec3f, spheres: &'a Vec<&dyn RayTrace
 pub struct Light {
     position: Vec3f,
     intensity: f32
+}
+
+pub struct Chessboard<'a> {
+    pub even_material: &'a Material,
+    pub odd_material: &'a Material
+}
+
+impl RayTraceable for Chessboard<'_> {
+    fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<HitInfo> {
+        if dir.y.abs() > 1e-3  {
+            let d = -(origin.y + 4.0) / dir.y; // the checkerboard plane has equation y = -4
+            let hit = origin + dir * d;
+            if d > 0.0 && hit.x.abs() < 10.0 && hit.z < -10.0 && hit.z > -30.0 {
+                let material = if ((0.5 * hit.x + 1000.0) as i32 + (0.5 * hit.z) as i32) & 1 == 1 
+                { self.odd_material } else { self.even_material };
+
+                let normal = Vec3f::unit_y();
+                return Some(HitInfo { distance: d, hitpoint: hit, normal, material });
+            }
+        } 
+        None
+    }
 }
