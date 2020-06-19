@@ -25,3 +25,11 @@ impl ColorF {
         ColorF{ r, g, b, a }
     }
 }
+
+impl std::ops::Mul<f32> for ColorF {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        ColorF { r: self.r * rhs, g: self.g * rhs, b: self.b * rhs, a: self.a * rhs }
+    }
+}

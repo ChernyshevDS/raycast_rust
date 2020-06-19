@@ -10,7 +10,7 @@ type ColorF = frame::ColorF;
 
 mod frame;
 
-const FOV: f32 = std::f32::consts::FRAC_PI_2;
+const FOV: f32 = std::f32::consts::FRAC_PI_4;
 
 fn main() {
     let mut framebuffer = frame::Frame::new(1024, 768);
@@ -24,19 +24,29 @@ fn main() {
     spheres.push(Sphere { center: Vector3::new( 1.5, -0.5, -18.0), radius: 3.0, material: &red_rubber });
     spheres.push(Sphere { center: Vector3::new( 7.0,  5.0, -18.0), radius: 4.0, material:      &ivory });
 
-    render_scene(&mut framebuffer, &spheres);
+    let mut lights = Vec::new();
+    lights.push(Light { position: Vector3::new(-20.0, 20.0,  20.0), intensity: 1.5 });
+
+    render_scene(&mut framebuffer, &spheres, &lights);
 
     save_as_ppm(&framebuffer).unwrap();
 }
 
-fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>) -> frame::ColorF {
+fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>, lights: &Vec<Light>) -> frame::ColorF {
     match scene_intersect(orig, dir, objects) {
-        Some(hit) => hit.material.diffuse_color,
+        Some(hit) => {
+            let mut diffuse_intensity = 0.0;
+            for light in lights {
+                let light_dir = (light.position - hit.hitpoint).normalize();
+                diffuse_intensity += light.intensity * light_dir.dot(hit.normal).max(0.0);
+            }
+            hit.material.diffuse_color * diffuse_intensity
+        },
         None => frame::ColorF::rgb(0.2, 0.7, 0.8) 
     }
 }
 
-fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<Sphere>) {
+fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<Sphere>, lights: &Vec<Light>) {
     let height = framebuffer.height(); 
     let width = framebuffer.width();
     let fovtan = (FOV / 2.0).tan();
@@ -45,7 +55,7 @@ fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<Sphere>) {
             let x =  (2.0 * (i as f32 + 0.5) / (width as f32)  - 1.0) * fovtan * (width as f32) / (height as f32);
             let y = -(2.0 * (j as f32 + 0.5) / (height as f32) - 1.0) * fovtan;
             let dir: Vec3f = Vector3::new(x, y, -1.0).normalize();
-            let color = cast_ray(&Vector3::zero(), &dir, objects);
+            let color = cast_ray(&Vector3::zero(), &dir, objects, lights);
             framebuffer.set_pixel(i, j, &color);
         }
     }
@@ -140,16 +150,19 @@ fn scene_intersect<'a>(orig: &Vec3f, dir: &Vec3f, spheres: &'a Vec<Sphere>) -> O
     let mut info: Option<HitInfo<'_>> = None;
 
     for sphere in spheres {
-        let mut dist_i: f32 = 0.0;
-        
         if let Some(inter) = sphere.ray_intersect(orig, dir) {
-            if dist_i < spheres_dist {
+            if inter < spheres_dist {
                 spheres_dist = inter;
-                let hitpoint = orig + dir * dist_i;
+                let hitpoint = orig + dir * inter;
                 let normal = (hitpoint - sphere.center).normalize();
                 info = Some(HitInfo { hitpoint, normal, material: sphere.material });
             }
         }
     }
     info
+}
+
+pub struct Light {
+    position: Vec3f,
+    intensity: f32
 }
