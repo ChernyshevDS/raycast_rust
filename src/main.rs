@@ -44,6 +44,13 @@ fn main() {
     save_as_ppm(&framebuffer).unwrap();
 }
 
+/*float light_distance = (lights[i].position - point).norm();
+Vec3f shadow_orig = light_dir*N < 0 ? point - N*1e-3 : point + N*1e-3; // checking if the point lies in the shadow of the lights[i]
+Vec3f shadow_pt, shadow_N;
+Material tmpmaterial;
+if (scene_intersect(shadow_orig, light_dir, spheres, shadow_pt, shadow_N, tmpmaterial) && (shadow_pt-shadow_orig).norm() < light_distance)
+    continue;*/
+
 fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>, lights: &Vec<Light>) -> frame::ColorF {
     match scene_intersect(orig, dir, objects) {
         Some(hit) => {
@@ -51,8 +58,21 @@ fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>, lights: &Vec<Light
             let mut specular_intensity = 0.0;
             for light in lights {
                 let light_dir = (light.position - hit.hitpoint).normalize();
+                let light_distance = (light.position - hit.hitpoint).magnitude();
+                let shadow_orig = if light_dir.dot(hit.normal) < 0.0 
+                         { hit.hitpoint - hit.normal * 1e-3 } 
+                    else { hit.hitpoint + hit.normal * 1e-3 };
+
+                match scene_intersect(&shadow_orig, &light_dir, objects) {
+                    Some(shadow_hit) => {
+                        if (shadow_hit.hitpoint - shadow_orig).magnitude() < light_distance {
+                            continue;
+                        }
+                    },
+                    None => {}
+                }
+
                 diffuse_intensity += light.intensity * light_dir.dot(hit.normal).max(0.0);
-                //specular_intensity += powf(std::max(0.f, -reflect(-light_dir, N)*dir), material.specular_exponent)*lights[i].intensity;
                 specular_intensity += reflect(light_dir, hit.normal).dot(*dir).max(0.0).powf(hit.material.specularity) * light.intensity;
             }
             let diffuse = hit.material.diffuse_color * diffuse_intensity * hit.material.albedo.x;

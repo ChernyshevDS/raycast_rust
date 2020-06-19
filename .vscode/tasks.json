@@ -8,7 +8,7 @@
 				"$rustc"
 			],
 			"group": "build",
-			"label": "Rust: cargo build - raycast_rust"
+			"label": "Rust: cargo build"
 		}
 	]
 }

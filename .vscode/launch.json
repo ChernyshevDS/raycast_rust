@@ -14,7 +14,7 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": true,
-            "preLaunchTask": "Rust: cargo build - raycast_rust"
+            "preLaunchTask": "Rust: cargo build"
         }
     ]
 }
