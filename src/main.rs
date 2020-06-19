@@ -4,8 +4,10 @@ use std::fs::File;
 use std::io::prelude::*;
 use cgmath::prelude::*;
 use cgmath::Vector3;
+use cgmath::Vector2;
 
 type Vec3f = Vector3<f32>;
+type Vec2f = Vector2<f32>;
 type ColorF = frame::ColorF;
 
 mod frame;
@@ -15,8 +17,16 @@ const FOV: f32 = std::f32::consts::FRAC_PI_4;
 fn main() {
     let mut framebuffer = frame::Frame::new(1024, 768);
 
-    let ivory = Material { diffuse_color: ColorF::rgb(0.4, 0.4, 0.3) };
-    let red_rubber = Material { diffuse_color: ColorF::rgb(0.3, 0.1, 0.1) };
+    let ivory = Material { 
+        albedo: Vec2f{ x:0.6, y: 0.3 }, 
+        diffuse_color: ColorF::rgb(0.4, 0.4, 0.3),
+        specularity: 50.0
+    };
+    let red_rubber = Material {
+        albedo: Vec2f{ x:0.9, y: 0.1 }, 
+        diffuse_color: ColorF::rgb(0.3, 0.1, 0.1),
+        specularity: 10.0
+    };
 
     let mut spheres = Vec::new();
     spheres.push(Sphere { center: Vector3::new(-3.0,  0.0, -16.0), radius: 2.0, material:      &ivory });
@@ -26,6 +36,8 @@ fn main() {
 
     let mut lights = Vec::new();
     lights.push(Light { position: Vector3::new(-20.0, 20.0,  20.0), intensity: 1.5 });
+    lights.push(Light { position: Vector3::new( 30.0, 50.0, -25.0), intensity: 1.8 });
+    lights.push(Light { position: Vector3::new( 30.0, 20.0,  30.0), intensity: 1.7 });
 
     render_scene(&mut framebuffer, &spheres, &lights);
 
@@ -36,14 +48,24 @@ fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>, lights: &Vec<Light
     match scene_intersect(orig, dir, objects) {
         Some(hit) => {
             let mut diffuse_intensity = 0.0;
+            let mut specular_intensity = 0.0;
             for light in lights {
                 let light_dir = (light.position - hit.hitpoint).normalize();
                 diffuse_intensity += light.intensity * light_dir.dot(hit.normal).max(0.0);
+                //specular_intensity += powf(std::max(0.f, -reflect(-light_dir, N)*dir), material.specular_exponent)*lights[i].intensity;
+                specular_intensity += reflect(light_dir, hit.normal).dot(*dir).max(0.0).powf(hit.material.specularity) * light.intensity;
             }
-            hit.material.diffuse_color * diffuse_intensity
+            let diffuse = hit.material.diffuse_color * diffuse_intensity * hit.material.albedo.x;
+            let specular = ColorF::BLACK;
+            diffuse + specular
+             //+ Vec3f(1., 1., 1.)*specular_light_intensity * material.albedo[1];
         },
         None => frame::ColorF::rgb(0.2, 0.7, 0.8) 
     }
+}
+
+fn reflect(I: Vec3f, N: Vec3f) -> Vec3f {
+    return I - N * 2.0 * (I.dot(N));
 }
 
 fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<Sphere>, lights: &Vec<Light>) {
@@ -136,7 +158,9 @@ impl RayTraceable for Sphere<'_> {
 }
 
 pub struct Material {
-    pub diffuse_color: ColorF
+    pub albedo: Vec2f,
+    pub diffuse_color: ColorF,
+    pub specularity: f32
 }
 
 pub struct HitInfo<'a> {

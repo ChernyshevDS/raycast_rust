@@ -33,3 +33,16 @@ impl std::ops::Mul<f32> for ColorF {
         ColorF { r: self.r * rhs, g: self.g * rhs, b: self.b * rhs, a: self.a * rhs }
     }
 }
+
+impl std::ops::Add for ColorF {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        ColorF { 
+            r: self.r + rhs.r, 
+            g: self.g + rhs.g, 
+            b: self.b + rhs.b, 
+            a: self.a + rhs.a 
+        }
+    }
+}
