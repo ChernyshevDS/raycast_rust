@@ -56,16 +56,15 @@ fn cast_ray(orig: &Vec3f, dir: &Vec3f, objects: &Vec<Sphere>, lights: &Vec<Light
                 specular_intensity += reflect(light_dir, hit.normal).dot(*dir).max(0.0).powf(hit.material.specularity) * light.intensity;
             }
             let diffuse = hit.material.diffuse_color * diffuse_intensity * hit.material.albedo.x;
-            let specular = ColorF::BLACK;
+            let specular = ColorF::WHITE * specular_intensity * hit.material.albedo.y;
             diffuse + specular
-             //+ Vec3f(1., 1., 1.)*specular_light_intensity * material.albedo[1];
         },
         None => frame::ColorF::rgb(0.2, 0.7, 0.8) 
     }
 }
 
-fn reflect(I: Vec3f, N: Vec3f) -> Vec3f {
-    return I - N * 2.0 * (I.dot(N));
+fn reflect(vec: Vec3f, relative_to: Vec3f) -> Vec3f {
+    return vec - relative_to * 2.0 * (vec.dot(relative_to));
 }
 
 fn render_scene(framebuffer: &mut frame::Frame, objects: &Vec<Sphere>, lights: &Vec<Light>) {
