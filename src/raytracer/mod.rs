@@ -20,7 +20,6 @@ const FOV: f32 = std::f32::consts::FRAC_PI_4;
 const MAX_REFLECTION: i32 = 4;
 
 pub fn render_scene(framebuffer: &mut Frame, scene: &Scene) {
-    
     let height = framebuffer.height(); 
     let width = framebuffer.width();
     let fovtan = (FOV / 2.0).tan();
@@ -31,29 +30,31 @@ pub fn render_scene(framebuffer: &mut Frame, scene: &Scene) {
         .for_each(|(i, out)| {
             let yi = i / width;
             let xi = i - (yi * width);
-
-            let x =  (2.0 * (xi as f32 + 0.5) / (width as f32)  - 1.0) * fovtan * (width as f32) / (height as f32);
-            let y = -(2.0 * (yi as f32 + 0.5) / (height as f32) - 1.0) * fovtan;
-            let dir: Vec3f = Vec3f::new(x, y, -1.0).normalize();
-            let color = cast_ray(&Vec3f::zero(), &dir, scene, 0);
-            
-            *out = color;
+           
+            //*out = rgss_sample(xi, yi, fovtan, width as f32, height as f32, scene);
+            *out = subpixel_sample(xi, yi, 0.0, 0.0, fovtan, width as f32, height as f32, scene);
         });
 }
 
-pub fn render_scene_region(framebuffer: &mut Frame, scene: &Scene) {
-    let height = framebuffer.height(); 
-    let width = framebuffer.width();
-    let fovtan = (FOV / 2.0).tan();
-    for j in 0..height {
-        for i in 0..width {
-            let x =  (2.0 * (i as f32 + 0.5) / (width as f32)  - 1.0) * fovtan * (width as f32) / (height as f32);
-            let y = -(2.0 * (j as f32 + 0.5) / (height as f32) - 1.0) * fovtan;
-            let dir: Vec3f = Vec3f::new(x, y, -1.0).normalize();
-            let color = cast_ray(&Vec3f::zero(), &dir, scene, 0);
-            framebuffer.set_pixel(i, j, &color);
-        }
-    }
+fn rgss_sample(x: usize, y: usize, fovtan: f32, width: f32, height: f32, scene: &Scene) -> ColorF {
+    let ds = 3.0 / 8.0;
+    let db = 1.0 / 8.0;
+    let c1 = subpixel_sample(x, y, db, ds, fovtan, width, height, scene);
+    let c2 = subpixel_sample(x, y, ds, -db, fovtan, width, height, scene);
+    let c3 = subpixel_sample(x, y, -db, -ds, fovtan, width, height, scene);
+    let c4 = subpixel_sample(x, y, -ds, db, fovtan, width, height, scene);
+    (c1 + c2 + c3 + c4) / 4.0
+}
+
+//px, py = [-1..1]
+fn subpixel_sample(x: usize, y: usize, px: f32, py: f32, fovtan: f32, width: f32, height: f32, scene: &Scene) -> ColorF {
+    let xi = x as f32 + (px / 2.0);
+    let yi = y as f32 + (py / 2.0);
+    let x =  (2.0 * (xi + 0.5) / width  - 1.0) * fovtan * width / height;
+    let y = -(2.0 * (yi + 0.5) / height - 1.0) * fovtan;
+    let dir: Vec3f = Vec3f::new(x, y, -1.0).normalize();
+    let color = cast_ray(&Vec3f::zero(), &dir, scene, 0);
+    color
 }
 
 fn cast_ray(orig: &Vec3f, dir: &Vec3f, scene: &Scene, depth: i32) -> ColorF {

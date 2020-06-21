@@ -34,6 +34,14 @@ impl std::ops::Mul<f32> for ColorF {
     }
 }
 
+impl std::ops::Div<f32> for ColorF {
+    type Output = Self;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        self * (1.0 / rhs)
+    }
+}
+
 impl std::ops::Add for ColorF {
     type Output = Self;
 
@@ -43,6 +51,19 @@ impl std::ops::Add for ColorF {
             g: self.g + rhs.g, 
             b: self.b + rhs.b, 
             a: self.a + rhs.a 
+        }
+    }
+}
+
+impl std::ops::Sub for ColorF {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        ColorF { 
+            r: self.r - rhs.r, 
+            g: self.g - rhs.g, 
+            b: self.b - rhs.b, 
+            a: self.a - rhs.a 
         }
     }
 }
