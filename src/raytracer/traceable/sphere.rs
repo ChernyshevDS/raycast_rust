@@ -1,5 +1,5 @@
 use super::*;
-use std::rc::Weak;
+use std::sync::Weak;
 
 pub struct Sphere {
     pub center: Vec3f,

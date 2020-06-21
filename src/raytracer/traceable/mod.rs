@@ -1,4 +1,4 @@
-use std::rc::Weak;
+use std::sync::Weak;
 
 pub use super::vector::*;
 pub use super::material::Material;
@@ -16,6 +16,6 @@ pub struct HitInfo {
     pub material: Weak<Material>
 }
 
-pub trait RayTraceable {
+pub trait RayTraceable: Send + Sync {
     fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<HitInfo>;
 }

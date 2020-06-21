@@ -1,4 +1,4 @@
-use std::rc::Weak;
+use std::sync::Weak;
 pub use super::*;
 
 pub struct Chessboard {

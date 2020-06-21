@@ -14,10 +14,34 @@ use light::Light;
 use frame::Frame;
 use scene::Scene;
 
+use rayon::prelude::*;
+
 const FOV: f32 = std::f32::consts::FRAC_PI_4;
 const MAX_REFLECTION: i32 = 4;
 
 pub fn render_scene(framebuffer: &mut Frame, scene: &Scene) {
+    
+    let height = framebuffer.height(); 
+    let width = framebuffer.width();
+    let fovtan = (FOV / 2.0).tan();
+
+    framebuffer.data_mut()
+        .par_iter_mut()
+        .enumerate()
+        .for_each(|(i, out)| {
+            let yi = i / width;
+            let xi = i - (yi * width);
+
+            let x =  (2.0 * (xi as f32 + 0.5) / (width as f32)  - 1.0) * fovtan * (width as f32) / (height as f32);
+            let y = -(2.0 * (yi as f32 + 0.5) / (height as f32) - 1.0) * fovtan;
+            let dir: Vec3f = Vec3f::new(x, y, -1.0).normalize();
+            let color = cast_ray(&Vec3f::zero(), &dir, scene, 0);
+            
+            *out = color;
+        });
+}
+
+pub fn render_scene_region(framebuffer: &mut Frame, scene: &Scene) {
     let height = framebuffer.height(); 
     let width = framebuffer.width();
     let fovtan = (FOV / 2.0).tan();

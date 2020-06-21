@@ -17,6 +17,10 @@ impl Frame {
         &self.data
     }
 
+    pub fn data_mut(&mut self) -> &mut Vec<ColorF> {
+        &mut self.data
+    }
+
     #[inline]
     pub fn width(&self) -> usize { self.width }
 

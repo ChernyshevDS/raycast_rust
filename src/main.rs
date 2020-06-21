@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 mod raytracer;
 
@@ -53,12 +53,12 @@ fn main() {
 
     let mut scene = Scene::new();
     
-    scene.materials.insert("ivory".to_string(), Rc::new(ivory));
-    scene.materials.insert("glass".to_string(), Rc::new(glass));
-    scene.materials.insert("red_rubber".to_string(), Rc::new(red_rubber));
-    scene.materials.insert("mirror".to_string(), Rc::new(mirror));
-    scene.materials.insert("even_chess".to_string(), Rc::new(even_chess));
-    scene.materials.insert("odd_chess".to_string(), Rc::new(odd_chess));
+    scene.materials.insert("ivory".to_string(), Arc::new(ivory));
+    scene.materials.insert("glass".to_string(), Arc::new(glass));
+    scene.materials.insert("red_rubber".to_string(), Arc::new(red_rubber));
+    scene.materials.insert("mirror".to_string(), Arc::new(mirror));
+    scene.materials.insert("even_chess".to_string(), Arc::new(even_chess));
+    scene.materials.insert("odd_chess".to_string(), Arc::new(odd_chess));
 
     let s1 = Sphere { center: Vec3f::new(-3.0,  0.0, -16.0), radius: 2.0, material: scene.find_material("ivory") };
     let s2 = Sphere { center: Vec3f::new(-1.0, -1.5, -12.0), radius: 2.0, material: scene.find_material("glass")  };
