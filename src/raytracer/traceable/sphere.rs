@@ -1,12 +1,19 @@
-pub use super::raytraceable::*;
+use super::*;
+use std::rc::Weak;
 
-pub struct Sphere<'a> {
+pub struct Sphere {
     pub center: Vec3f,
     pub radius: f32,
-    pub material: &'a Material
+    pub material: Weak<Material>
 }
 
-impl RayTraceable for Sphere<'_> {
+impl Sphere {
+    pub fn new(center: Vec3f, radius: f32, material: Weak<Material>) -> Self {
+        Self { center, radius, material }
+    }
+}
+
+impl RayTraceable for Sphere {
     fn ray_intersect(&self, origin: &Vec3f, dir: &Vec3f) -> Option<HitInfo> {
         let fwd: Vec3f = self.center - origin;
         let tca: f32 = fwd.dot(*dir);
@@ -27,6 +34,6 @@ impl RayTraceable for Sphere<'_> {
 
         let hitpoint = origin + dir * intersection;
         let normal = (hitpoint - self.center).normalize();
-        Some(HitInfo { distance: intersection, hitpoint, normal, material: self.material })
+        Some(HitInfo { distance: intersection, hitpoint, normal, material: self.material.clone() })
     }
 }
