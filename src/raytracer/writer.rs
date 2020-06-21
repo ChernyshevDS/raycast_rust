@@ -4,9 +4,7 @@ use std::io::prelude::*;
 use super::frame::Frame;
 
 fn clamp_to_byte(v: f32) -> u8 {
-    if v > 1.0 { return 255; }
-    else if v < 0.0 { return 0; }
-    else { return (v * 255.0).round() as u8 }
+    (v * 255.0).round().max(0.0).min(255.0) as u8
 }
 
 #[test]
@@ -28,18 +26,16 @@ fn test_clamp_to_byte() {
 pub fn save_as_ppm(frame: &Frame, filepath: &str) -> std::io::Result<()>{
     let mut f = File::create(filepath)?;
 
-    let header = format!("P3\n{} {}\n255\n", frame.width(), frame.height());
+    let header = format!("P6\n{} {}\n255\n", frame.width(), frame.height());
     f.write_all(header.as_bytes())?;
     
-    let mut content = String::with_capacity(frame.width() * frame.height() * 10);
-    for x in frame.data() {
-        let r = clamp_to_byte(x.r);
-        let g = clamp_to_byte(x.g);
-        let b = clamp_to_byte(x.b);
-        let s = format!("{} {} {}\n", r, g, b);
-        content.push_str(&s);
+    let mut buf = [0; 3];
+    for x in frame.data().iter() {
+        buf[0] = clamp_to_byte(x.r);
+        buf[1] = clamp_to_byte(x.g);
+        buf[2] = clamp_to_byte(x.b);
+        f.write(&buf)?;
     }
-    f.write_all(content.as_bytes())?;
     f.sync_all()?;
 
     Ok(())
