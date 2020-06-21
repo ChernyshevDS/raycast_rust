@@ -1,9 +1,8 @@
-pub mod colorf;
-pub use colorf::ColorF as ColorF;
+use super::colorf::ColorF;
 
 #[derive(Clone)]
 pub struct Frame {
-    data: Vec<colorf::ColorF>,
+    data: Vec<ColorF>,
     width: usize,
     height: usize
 }
